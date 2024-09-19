@@ -722,10 +722,37 @@ namespace base {
 // el::base::utils
 namespace utils {
 
+  std::string widechar_to_utf8(const std::wstring& wstr)
+  {
+      std::string convertedString;
+      int requiredSize = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, 0, 0, 0, 0);
+      if (requiredSize > 0)
+      {
+          std::vector<char> buffer(requiredSize);
+          WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &buffer[0], requiredSize, 0, 0);
+          convertedString.assign(buffer.begin(), buffer.end() - 1);
+      }
+      return convertedString;
+  }
+  
+  std::wstring utf8_to_widechar(const std::string& str)
+  {
+      std::wstring convertedString;
+      int requiredSize = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, 0, 0);
+      if (requiredSize > 0)
+      {
+          std::vector<wchar_t> buffer(requiredSize);
+          MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &buffer[0], requiredSize);
+          convertedString.assign(buffer.begin(), buffer.end() - 1);
+      }
+      return convertedString;
+  }
+
+
 // File
 
 base::type::fstream_t* File::newFileStream(const std::string& filename) {
-  base::type::fstream_t *fs = new base::type::fstream_t(filename.c_str(),
+  base::type::fstream_t* fs = new base::type::fstream_t(utf8_to_widechar(filename).c_str(),
       base::type::fstream_t::out
 #if !defined(ELPP_FRESH_LOG_FILE)
       | base::type::fstream_t::app
@@ -767,7 +794,7 @@ bool File::pathExists(const char* path, bool considerFile) {
   struct stat st;
   return (stat(path, &st) == 0);
 #elif ELPP_OS_WINDOWS
-  DWORD fileType = GetFileAttributesA(path);
+  DWORD fileType = GetFileAttributesW(utf8_to_widechar(path).c_str());
   if (fileType == INVALID_FILE_ATTRIBUTES) {
     return false;
   }
@@ -804,7 +831,7 @@ bool File::createPath(const std::string& path) {
     status = mkdir(builtPath.c_str(), ELPP_LOG_PERMS);
     currPath = STRTOK(nullptr, base::consts::kFilePathSeparator, 0);
 #elif ELPP_OS_WINDOWS
-    status = _mkdir(builtPath.c_str());
+    status = _wmkdir(utf8_to_widechar(builtPath).c_str());
     currPath = STRTOK(nullptr, base::consts::kFilePathSeparator, &nextTok_);
 #endif  // ELPP_OS_UNIX
   }
@@ -1825,7 +1852,7 @@ bool TypedConfigurations::unsafeValidateFileRolling(Level level, const PreRollOu
                        << LevelHelper::convertToString(level) << "]");
     fs->close();
     preRollOutCallback(fname.c_str(), currFileSize);
-    fs->open(fname, std::fstream::out | std::fstream::trunc);
+    fs->open(base::utils::utf8_to_widechar(fname), std::fstream::out | std::fstream::trunc);
     return true;
   }
   return false;
